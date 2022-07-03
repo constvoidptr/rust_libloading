@@ -358,9 +358,7 @@ pub struct Symbol<T> {
 impl<T> Symbol<T> {
     /// Convert the loaded `Symbol` into a handle.
     pub fn into_raw(self) -> FARPROC {
-        let pointer = self.pointer;
-        mem::forget(self);
-        pointer
+        self.pointer
     }
 }
 
