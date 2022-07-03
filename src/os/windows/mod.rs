@@ -26,7 +26,7 @@ mod windows_imports {
 #[cfg(any(not(libloading_docs), windows))]
 mod windows_imports {
     extern crate winapi;
-    pub(super) use self::winapi::shared::minwindef::{WORD, DWORD, HMODULE, FARPROC};
+    pub(super) use self::winapi::shared::minwindef::{DWORD, FARPROC, HMODULE, WORD};
     pub(super) use self::winapi::shared::ntdef::WCHAR;
     pub(super) use self::winapi::um::{errhandlingapi, libloaderapi};
     pub(super) use std::os::windows::ffi::{OsStrExt, OsStringExt};
@@ -34,26 +34,20 @@ mod windows_imports {
 
     pub(super) mod consts {
         pub(crate) use super::winapi::um::libloaderapi::{
-            LOAD_IGNORE_CODE_AUTHZ_LEVEL,
-            LOAD_LIBRARY_AS_DATAFILE,
-            LOAD_LIBRARY_AS_DATAFILE_EXCLUSIVE,
-            LOAD_LIBRARY_AS_IMAGE_RESOURCE,
-            LOAD_LIBRARY_SEARCH_APPLICATION_DIR,
-            LOAD_LIBRARY_SEARCH_DEFAULT_DIRS,
-            LOAD_LIBRARY_SEARCH_DLL_LOAD_DIR,
-            LOAD_LIBRARY_SEARCH_SYSTEM32,
-            LOAD_LIBRARY_SEARCH_USER_DIRS,
-            LOAD_WITH_ALTERED_SEARCH_PATH,
-            LOAD_LIBRARY_REQUIRE_SIGNED_TARGET,
-            LOAD_LIBRARY_SAFE_CURRENT_DIRS,
+            LOAD_IGNORE_CODE_AUTHZ_LEVEL, LOAD_LIBRARY_AS_DATAFILE,
+            LOAD_LIBRARY_AS_DATAFILE_EXCLUSIVE, LOAD_LIBRARY_AS_IMAGE_RESOURCE,
+            LOAD_LIBRARY_REQUIRE_SIGNED_TARGET, LOAD_LIBRARY_SAFE_CURRENT_DIRS,
+            LOAD_LIBRARY_SEARCH_APPLICATION_DIR, LOAD_LIBRARY_SEARCH_DEFAULT_DIRS,
+            LOAD_LIBRARY_SEARCH_DLL_LOAD_DIR, LOAD_LIBRARY_SEARCH_SYSTEM32,
+            LOAD_LIBRARY_SEARCH_USER_DIRS, LOAD_WITH_ALTERED_SEARCH_PATH,
         };
     }
 }
 
 use self::windows_imports::*;
-use util::{ensure_compatible_types, cstr_cow_from_bytes};
 use std::ffi::{OsStr, OsString};
 use std::{fmt, io, marker, mem, ptr};
+use util::{cstr_cow_from_bytes, ensure_compatible_types};
 
 /// The platform-specific counterpart of the cross-platform [`Library`](crate::Library).
 pub struct Library(HMODULE);
@@ -117,14 +111,19 @@ impl Library {
     pub fn this() -> Result<Library, crate::Error> {
         unsafe {
             let mut handle: HMODULE = std::ptr::null_mut();
-            with_get_last_error(|source| crate::Error::GetModuleHandleExW { source }, || {
-                let result = libloaderapi::GetModuleHandleExW(0, std::ptr::null_mut(), &mut handle);
-                if result == 0 {
-                    None
-                } else {
-                    Some(Library(handle))
-                }
-            }).map_err(|e| e.unwrap_or(crate::Error::GetModuleHandleExWUnknown))
+            with_get_last_error(
+                |source| crate::Error::GetModuleHandleExW { source },
+                || {
+                    let result =
+                        libloaderapi::GetModuleHandleExW(0, std::ptr::null_mut(), &mut handle);
+                    if result == 0 {
+                        None
+                    } else {
+                        Some(Library(handle))
+                    }
+                },
+            )
+            .map_err(|e| e.unwrap_or(crate::Error::GetModuleHandleExWUnknown))
         }
     }
 
@@ -150,16 +149,21 @@ impl Library {
 
         let ret = unsafe {
             let mut handle: HMODULE = std::ptr::null_mut();
-            with_get_last_error(|source| crate::Error::GetModuleHandleExW { source }, || {
-                // Make sure no winapi calls as a result of drop happen inside this closure, because
-                // otherwise that might change the return value of the GetLastError.
-                let result = libloaderapi::GetModuleHandleExW(0, wide_filename.as_ptr(), &mut handle);
-                if result == 0 {
-                    None
-                } else {
-                    Some(Library(handle))
-                }
-            }).map_err(|e| e.unwrap_or(crate::Error::GetModuleHandleExWUnknown))
+            with_get_last_error(
+                |source| crate::Error::GetModuleHandleExW { source },
+                || {
+                    // Make sure no winapi calls as a result of drop happen inside this closure, because
+                    // otherwise that might change the return value of the GetLastError.
+                    let result =
+                        libloaderapi::GetModuleHandleExW(0, wide_filename.as_ptr(), &mut handle);
+                    if result == 0 {
+                        None
+                    } else {
+                        Some(Library(handle))
+                    }
+                },
+            )
+            .map_err(|e| e.unwrap_or(crate::Error::GetModuleHandleExWUnknown))
         };
 
         drop(wide_filename); // Drop wide_filename here to ensure it doesn’t get moved and dropped
@@ -186,21 +190,31 @@ impl Library {
     /// Additionally, the callers of this function must also ensure that execution of the
     /// termination routines contained within the library is safe as well. These routines may be
     /// executed when the library is unloaded.
-    pub unsafe fn load_with_flags<P: AsRef<OsStr>>(filename: P, flags: DWORD) -> Result<Library, crate::Error> {
+    pub unsafe fn load_with_flags<P: AsRef<OsStr>>(
+        filename: P,
+        flags: DWORD,
+    ) -> Result<Library, crate::Error> {
         let wide_filename: Vec<u16> = filename.as_ref().encode_wide().chain(Some(0)).collect();
         let _guard = ErrorModeGuard::new();
 
-        let ret = with_get_last_error(|source| crate::Error::LoadLibraryExW { source }, || {
-            // Make sure no winapi calls as a result of drop happen inside this closure, because
-            // otherwise that might change the return value of the GetLastError.
-            let handle =
-                libloaderapi::LoadLibraryExW(wide_filename.as_ptr(), std::ptr::null_mut(), flags);
-            if handle.is_null()  {
-                None
-            } else {
-                Some(Library(handle))
-            }
-        }).map_err(|e| e.unwrap_or(crate::Error::LoadLibraryExWUnknown));
+        let ret = with_get_last_error(
+            |source| crate::Error::LoadLibraryExW { source },
+            || {
+                // Make sure no winapi calls as a result of drop happen inside this closure, because
+                // otherwise that might change the return value of the GetLastError.
+                let handle = libloaderapi::LoadLibraryExW(
+                    wide_filename.as_ptr(),
+                    std::ptr::null_mut(),
+                    flags,
+                );
+                if handle.is_null() {
+                    None
+                } else {
+                    Some(Library(handle))
+                }
+            },
+        )
+        .map_err(|e| e.unwrap_or(crate::Error::LoadLibraryExWUnknown));
         drop(wide_filename); // Drop wide_filename here to ensure it doesn’t get moved and dropped
                              // inside the closure by mistake. See comment inside the closure.
         ret
@@ -220,17 +234,21 @@ impl Library {
     pub unsafe fn get<T>(&self, symbol: &[u8]) -> Result<Symbol<T>, crate::Error> {
         ensure_compatible_types::<T, FARPROC>()?;
         let symbol = cstr_cow_from_bytes(symbol)?;
-        with_get_last_error(|source| crate::Error::GetProcAddress { source }, || {
-            let symbol = libloaderapi::GetProcAddress(self.0, symbol.as_ptr());
-            if symbol.is_null() {
-                None
-            } else {
-                Some(Symbol {
-                    pointer: symbol,
-                    pd: marker::PhantomData
-                })
-            }
-        }).map_err(|e| e.unwrap_or(crate::Error::GetProcAddressUnknown))
+        with_get_last_error(
+            |source| crate::Error::GetProcAddress { source },
+            || {
+                let symbol = libloaderapi::GetProcAddress(self.0, symbol.as_ptr());
+                if symbol.is_null() {
+                    None
+                } else {
+                    Some(Symbol {
+                        pointer: symbol,
+                        pd: marker::PhantomData,
+                    })
+                }
+            },
+        )
+        .map_err(|e| e.unwrap_or(crate::Error::GetProcAddressUnknown))
     }
 
     /// Get a pointer to a function or static variable by ordinal number.
@@ -240,18 +258,22 @@ impl Library {
     /// Users of this API must specify the correct type of the function or variable loaded.
     pub unsafe fn get_ordinal<T>(&self, ordinal: WORD) -> Result<Symbol<T>, crate::Error> {
         ensure_compatible_types::<T, FARPROC>()?;
-        with_get_last_error(|source| crate::Error::GetProcAddress { source }, || {
-            let ordinal = ordinal as usize as *mut _;
-            let symbol = libloaderapi::GetProcAddress(self.0, ordinal);
-            if symbol.is_null() {
-                None
-            } else {
-                Some(Symbol {
-                    pointer: symbol,
-                    pd: marker::PhantomData
-                })
-            }
-        }).map_err(|e| e.unwrap_or(crate::Error::GetProcAddressUnknown))
+        with_get_last_error(
+            |source| crate::Error::GetProcAddress { source },
+            || {
+                let ordinal = ordinal as usize as *mut _;
+                let symbol = libloaderapi::GetProcAddress(self.0, ordinal);
+                if symbol.is_null() {
+                    None
+                } else {
+                    Some(Symbol {
+                        pointer: symbol,
+                        pd: marker::PhantomData,
+                    })
+                }
+            },
+        )
+        .map_err(|e| e.unwrap_or(crate::Error::GetProcAddressUnknown))
     }
 
     /// Convert the `Library` to a raw handle.
@@ -279,13 +301,17 @@ impl Library {
     ///
     /// The underlying data structures may still get leaked if an error does occur.
     pub fn close(self) -> Result<(), crate::Error> {
-        let result = with_get_last_error(|source| crate::Error::FreeLibrary { source }, || {
-            if unsafe { libloaderapi::FreeLibrary(self.0) == 0 } {
-                None
-            } else {
-                Some(())
-            }
-        }).map_err(|e| e.unwrap_or(crate::Error::FreeLibraryUnknown));
+        let result = with_get_last_error(
+            |source| crate::Error::FreeLibrary { source },
+            || {
+                if unsafe { libloaderapi::FreeLibrary(self.0) == 0 } {
+                    None
+                } else {
+                    Some(())
+                }
+            },
+        )
+        .map_err(|e| e.unwrap_or(crate::Error::FreeLibraryUnknown));
         // While the library is not free'd yet in case of an error, there is no reason to try
         // dropping it again, because all that will do is try calling `FreeLibrary` again. only
         // this time it would ignore the return result, which we already seen failing...
@@ -296,7 +322,9 @@ impl Library {
 
 impl Drop for Library {
     fn drop(&mut self) {
-        unsafe { libloaderapi::FreeLibrary(self.0); }
+        unsafe {
+            libloaderapi::FreeLibrary(self.0);
+        }
     }
 }
 
@@ -305,15 +333,16 @@ impl fmt::Debug for Library {
         unsafe {
             // FIXME: use Maybeuninit::uninit_array when stable
             let mut buf =
-                mem::MaybeUninit::<[mem::MaybeUninit::<WCHAR>; 1024]>::uninit().assume_init();
-            let len = libloaderapi::GetModuleFileNameW(self.0,
-                (&mut buf[..]).as_mut_ptr().cast(), 1024) as usize;
+                mem::MaybeUninit::<[mem::MaybeUninit<WCHAR>; 1024]>::uninit().assume_init();
+            let len =
+                libloaderapi::GetModuleFileNameW(self.0, (&mut buf[..]).as_mut_ptr().cast(), 1024)
+                    as usize;
             if len == 0 {
                 f.write_str(&format!("Library@{:p}", self.0))
             } else {
                 let string: OsString = OsString::from_wide(
                     // FIXME: use Maybeuninit::slice_get_ref when stable
-                    &*(&buf[..len] as *const [_] as *const [WCHAR])
+                    &*(&buf[..len] as *const [_] as *const [WCHAR]),
                 );
                 f.write_str(&format!("Library@{:p} from {:?}", self.0, string))
             }
@@ -327,7 +356,7 @@ impl fmt::Debug for Library {
 /// `Symbol` does not outlive the `Library` that it comes from.
 pub struct Symbol<T> {
     pointer: FARPROC,
-    pd: marker::PhantomData<T>
+    pd: marker::PhantomData<T>,
 }
 
 impl<T> Symbol<T> {
@@ -408,15 +437,21 @@ impl Drop for ErrorModeGuard {
     }
 }
 
-fn with_get_last_error<T, F>(wrap: fn(crate::error::WindowsError) -> crate::Error, closure: F)
--> Result<T, Option<crate::Error>>
-where F: FnOnce() -> Option<T> {
+fn with_get_last_error<T, F>(
+    wrap: fn(crate::error::WindowsError) -> crate::Error,
+    closure: F,
+) -> Result<T, Option<crate::Error>>
+where
+    F: FnOnce() -> Option<T>,
+{
     closure().ok_or_else(|| {
         let error = unsafe { errhandlingapi::GetLastError() };
         if error == 0 {
             None
         } else {
-            Some(wrap(crate::error::WindowsError(io::Error::from_raw_os_error(error as i32))))
+            Some(wrap(crate::error::WindowsError(
+                io::Error::from_raw_os_error(error as i32),
+            )))
         }
     })
 }
