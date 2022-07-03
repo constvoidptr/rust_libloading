@@ -352,7 +352,7 @@ impl Library {
         // While the library is not free'd yet in case of an error, there is no reason to try
         // dropping it again, because all that will do is try calling `dlclose` again. only
         // this time it would ignore the return result, which we already seen failing…
-        std::mem::forget(self);
+        mem::forget(self);
         result
     }
 }
@@ -412,7 +412,7 @@ impl<T> Clone for Symbol<T> {
     }
 }
 
-impl<T> ::std::ops::Deref for Symbol<T> {
+impl<T> std::ops::Deref for Symbol<T> {
     type Target = T;
     fn deref(&self) -> &T {
         unsafe {

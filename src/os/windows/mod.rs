@@ -110,12 +110,11 @@ impl Library {
     /// [MSDN]: https://docs.microsoft.com/en-us/windows/win32/api/libloaderapi/nf-libloaderapi-getmodulehandleexw
     pub fn this() -> Result<Library, crate::Error> {
         unsafe {
-            let mut handle: HMODULE = std::ptr::null_mut();
+            let mut handle: HMODULE = ptr::null_mut();
             with_get_last_error(
                 |source| crate::Error::GetModuleHandleExW { source },
                 || {
-                    let result =
-                        libloaderapi::GetModuleHandleExW(0, std::ptr::null_mut(), &mut handle);
+                    let result = libloaderapi::GetModuleHandleExW(0, ptr::null_mut(), &mut handle);
                     if result == 0 {
                         None
                     } else {
@@ -148,7 +147,7 @@ impl Library {
         let wide_filename: Vec<u16> = filename.as_ref().encode_wide().chain(Some(0)).collect();
 
         let ret = unsafe {
-            let mut handle: HMODULE = std::ptr::null_mut();
+            let mut handle: HMODULE = ptr::null_mut();
             with_get_last_error(
                 |source| crate::Error::GetModuleHandleExW { source },
                 || {
@@ -202,11 +201,8 @@ impl Library {
             || {
                 // Make sure no winapi calls as a result of drop happen inside this closure, because
                 // otherwise that might change the return value of the GetLastError.
-                let handle = libloaderapi::LoadLibraryExW(
-                    wide_filename.as_ptr(),
-                    std::ptr::null_mut(),
-                    flags,
-                );
+                let handle =
+                    libloaderapi::LoadLibraryExW(wide_filename.as_ptr(), ptr::null_mut(), flags);
                 if handle.is_null() {
                     None
                 } else {
@@ -315,7 +311,7 @@ impl Library {
         // While the library is not free'd yet in case of an error, there is no reason to try
         // dropping it again, because all that will do is try calling `FreeLibrary` again. only
         // this time it would ignore the return result, which we already seen failing...
-        std::mem::forget(self);
+        mem::forget(self);
         result
     }
 }
@@ -391,7 +387,7 @@ impl<T> Clone for Symbol<T> {
     }
 }
 
-impl<T> ::std::ops::Deref for Symbol<T> {
+impl<T> std::ops::Deref for Symbol<T> {
     type Target = T;
     fn deref(&self) -> &T {
         unsafe {
