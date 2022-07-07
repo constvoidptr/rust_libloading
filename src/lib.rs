@@ -51,7 +51,7 @@ pub use self::error::Error;
 #[cfg(any(unix, windows, libloading_docs))]
 mod safe;
 #[cfg(any(unix, windows, libloading_docs))]
-pub use self::safe::{Library, Symbol};
+pub use self::safe::{Library, OwnedSymbol, Symbol};
 
 use std::env::consts::{DLL_PREFIX, DLL_SUFFIX};
 use std::ffi::{OsStr, OsString};

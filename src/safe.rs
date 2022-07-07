@@ -9,6 +9,7 @@ use std::ffi::OsStr;
 use std::fmt;
 use std::marker;
 use std::ops;
+use std::sync::Arc;
 
 /// A loaded dynamic library.
 #[cfg_attr(libloading_docs, doc(cfg(any(unix, windows))))]
@@ -146,6 +147,12 @@ impl Library {
     /// ```
     pub unsafe fn get<'lib, T>(&'lib self, symbol: &[u8]) -> Result<Symbol<'lib, T>, Error> {
         self.0.get(symbol).map(|from| Symbol::from_raw(from, self))
+    }
+
+    pub unsafe fn get_owned<T>(self: Arc<Self>, symbol: &[u8]) -> Result<OwnedSymbol<T>, Error> {
+        self.0
+            .get(symbol)
+            .map(|from| OwnedSymbol::from_raw(from, self))
     }
 
     /// Unload the library.
@@ -297,3 +304,51 @@ impl<'lib, T> fmt::Debug for Symbol<'lib, T> {
 
 unsafe impl<'lib, T: Send> Send for Symbol<'lib, T> {}
 unsafe impl<'lib, T: Sync> Sync for Symbol<'lib, T> {}
+
+pub struct OwnedSymbol<T> {
+    inner: imp::Symbol<T>,
+    library: Arc<Library>,
+}
+
+impl<T> OwnedSymbol<T> {
+    pub unsafe fn into_raw(self) -> imp::Symbol<T> {
+        self.inner
+    }
+
+    pub unsafe fn into_raw_parts(self) -> (imp::Symbol<T>, Arc<Library>) {
+        (self.inner, self.library)
+    }
+
+    pub unsafe fn from_raw(sym: imp::Symbol<T>, library: Arc<Library>) -> OwnedSymbol<T> {
+        OwnedSymbol {
+            inner: sym,
+            library,
+        }
+    }
+}
+
+impl<T> Clone for OwnedSymbol<T> {
+    fn clone(&self) -> OwnedSymbol<T> {
+        OwnedSymbol {
+            inner: self.inner.clone(),
+            library: self.library.clone(),
+        }
+    }
+}
+
+// FIXME: implement FnOnce for callable stuff instead.
+impl<T> ops::Deref for OwnedSymbol<T> {
+    type Target = T;
+    fn deref(&self) -> &T {
+        ops::Deref::deref(&self.inner)
+    }
+}
+
+impl<T> fmt::Debug for OwnedSymbol<T> {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        self.inner.fmt(f)
+    }
+}
+
+unsafe impl<T: Send> Send for OwnedSymbol<T> {}
+unsafe impl<T: Sync> Sync for OwnedSymbol<T> {}
